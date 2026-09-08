@@ -72,6 +72,45 @@ function createDbClient() {
   if (dialect === 'postgresql') {
     const pool = globalForDb.pgPool ?? new PgPool({ connectionString: dbUrl });
     globalForDb.pgPool = pool;
+
+    // Auto-create tables & indexes for PostgreSQL if not already created
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS "TrackSnapshot" (
+        "id" varchar(191) PRIMARY KEY NOT NULL,
+        "trackName" varchar(500) NOT NULL,
+        "artistName" varchar(255) NOT NULL,
+        "country" varchar(10) DEFAULT 'global' NOT NULL,
+        "rank" integer NOT NULL,
+        "dailyStreams" bigint NOT NULL,
+        "totalStreams" bigint,
+        "createdAt" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS "TrackSnapshot_createdAt_idx" ON "TrackSnapshot" ("createdAt");
+      CREATE INDEX IF NOT EXISTS "TrackSnapshot_trackName_artistName_idx" ON "TrackSnapshot" ("trackName", "artistName");
+      CREATE INDEX IF NOT EXISTS "TrackSnapshot_country_idx" ON "TrackSnapshot" ("country");
+
+      CREATE TABLE IF NOT EXISTS "TrackCurrent" (
+        "id" varchar(191) PRIMARY KEY NOT NULL,
+        "trackId" varchar(255),
+        "trackName" varchar(500) NOT NULL,
+        "artistName" varchar(255) NOT NULL,
+        "country" varchar(10) DEFAULT 'global' NOT NULL,
+        "rank" integer NOT NULL,
+        "previousRank" integer,
+        "rankDelta" integer,
+        "dailyStreams" bigint NOT NULL,
+        "totalStreams" bigint,
+        "imageUrl" varchar(500),
+        "previewUrl" varchar(500),
+        "spotifyUrl" varchar(500),
+        "lastUpdated" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "TrackCurrent_trackName_artistName_country_key" ON "TrackCurrent" ("trackName", "artistName", "country");
+      CREATE INDEX IF NOT EXISTS "TrackCurrent_rank_idx" ON "TrackCurrent" ("rank");
+      CREATE INDEX IF NOT EXISTS "TrackCurrent_trackName_artistName_idx" ON "TrackCurrent" ("trackName", "artistName");
+      CREATE INDEX IF NOT EXISTS "TrackCurrent_country_idx" ON "TrackCurrent" ("country");
+    `).catch(() => {});
+
     return {
       dialect,
       db: drizzlePg(pool, { schema: pgSchema }),
@@ -138,6 +177,49 @@ function createDbClient() {
     keepAliveInitialDelay: 10000,
   });
   globalForDb.mysqlPool = pool;
+
+  // Auto-create tables & indexes for MySQL if not already created
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS \`TrackSnapshot\` (
+      \`id\` varchar(191) NOT NULL,
+      \`trackName\` varchar(500) NOT NULL,
+      \`artistName\` varchar(255) NOT NULL,
+      \`country\` varchar(10) NOT NULL DEFAULT 'global',
+      \`rank\` int NOT NULL,
+      \`dailyStreams\` bigint NOT NULL,
+      \`totalStreams\` bigint DEFAULT NULL,
+      \`createdAt\` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (\`id\`),
+      KEY \`TrackSnapshot_createdAt_idx\` (\`createdAt\`),
+      KEY \`TrackSnapshot_trackName_artistName_idx\` (\`trackName\`, \`artistName\`),
+      KEY \`TrackSnapshot_country_idx\` (\`country\`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `).catch(() => {});
+
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS \`TrackCurrent\` (
+      \`id\` varchar(191) NOT NULL,
+      \`trackId\` varchar(255) DEFAULT NULL,
+      \`trackName\` varchar(500) NOT NULL,
+      \`artistName\` varchar(255) NOT NULL,
+      \`country\` varchar(10) NOT NULL DEFAULT 'global',
+      \`rank\` int NOT NULL,
+      \`previousRank\` int DEFAULT NULL,
+      \`rankDelta\` int DEFAULT NULL,
+      \`dailyStreams\` bigint NOT NULL,
+      \`totalStreams\` bigint DEFAULT NULL,
+      \`imageUrl\` varchar(500) DEFAULT NULL,
+      \`previewUrl\` varchar(500) DEFAULT NULL,
+      \`spotifyUrl\` varchar(500) DEFAULT NULL,
+      \`lastUpdated\` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (\`id\`),
+      UNIQUE KEY \`TrackCurrent_trackName_artistName_country_key\` (\`trackName\`, \`artistName\`, \`country\`),
+      KEY \`TrackCurrent_rank_idx\` (\`rank\`),
+      KEY \`TrackCurrent_trackName_artistName_idx\` (\`trackName\`, \`artistName\`),
+      KEY \`TrackCurrent_country_idx\` (\`country\`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `).catch(() => {});
+
   return {
     dialect,
     db: drizzleMysql(pool, { schema: mysqlSchema, mode: 'default' }),
@@ -353,22 +435,58 @@ export const trackCurrentRepo = {
           )
         );
     } else {
-      await (clientInfo.db as any).insert(trackCurrents).values({
-        id: data.id || crypto.randomUUID(),
-        trackId: data.trackId || null,
-        trackName: data.trackName,
-        artistName: data.artistName,
-        country: data.country || 'global',
-        rank: data.rank,
-        previousRank: data.previousRank ?? null,
-        rankDelta: data.rankDelta ?? null,
-        dailyStreams: data.dailyStreams,
-        totalStreams: data.totalStreams ?? null,
-        imageUrl: data.imageUrl || null,
-        previewUrl: data.previewUrl || null,
-        spotifyUrl: data.spotifyUrl || null,
-        lastUpdated: new Date(),
-      });
+      try {
+        await (clientInfo.db as any).insert(trackCurrents).values({
+          id: data.id || crypto.randomUUID(),
+          trackId: data.trackId || null,
+          trackName: data.trackName,
+          artistName: data.artistName,
+          country: data.country || 'global',
+          rank: data.rank,
+          previousRank: data.previousRank ?? null,
+          rankDelta: data.rankDelta ?? null,
+          dailyStreams: data.dailyStreams,
+          totalStreams: data.totalStreams ?? null,
+          imageUrl: data.imageUrl || null,
+          previewUrl: data.previewUrl || null,
+          spotifyUrl: data.spotifyUrl || null,
+          lastUpdated: new Date(),
+        });
+      } catch (err: any) {
+        // Fallback to update if row was inserted concurrently or exists (ER_DUP_ENTRY / unique constraint)
+        const isDuplicate =
+          err?.code === 'ER_DUP_ENTRY' ||
+          err?.errno === 1062 ||
+          err?.message?.includes('Duplicate entry') ||
+          err?.message?.includes('unique') ||
+          err?.message?.includes('UNIQUE');
+
+        if (isDuplicate) {
+          await (clientInfo.db as any)
+            .update(trackCurrents)
+            .set({
+              rank: data.rank,
+              previousRank: data.previousRank ?? null,
+              rankDelta: data.rankDelta ?? null,
+              dailyStreams: data.dailyStreams,
+              totalStreams: data.totalStreams ?? null,
+              trackId: data.trackId || null,
+              imageUrl: data.imageUrl || null,
+              previewUrl: data.previewUrl || null,
+              spotifyUrl: data.spotifyUrl || null,
+              lastUpdated: new Date(),
+            })
+            .where(
+              and(
+                eq(trackCurrents.trackName, data.trackName),
+                eq(trackCurrents.artistName, data.artistName),
+                eq(trackCurrents.country, data.country)
+              )
+            );
+        } else {
+          throw err;
+        }
+      }
     }
   },
 

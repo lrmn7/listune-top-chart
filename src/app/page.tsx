@@ -1052,7 +1052,7 @@ print(data)`,
                 Kworb.net
               </a>
               <a
-                href="https://github.com/lrmn7/listune-top-chart"
+                href="https://github.com/listune/listune-top-chart"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="footer-link"
@@ -1072,12 +1072,12 @@ print(data)`,
             <div>
               © 2026 Listune. All rights reserved. • Made with ♥ by{' '}
               <a
-                href="https://lrmn.wtf/"
+                href="https://listune.app/"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: 'var(--text-secondary)', textDecoration: 'underline', textUnderlineOffset: '2px' }}
               >
-                L RMN
+                Listune Team
               </a>
             </div>
           </div>

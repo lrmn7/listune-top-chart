@@ -38,6 +38,13 @@ export async function GET(request: Request) {
       }
     }
     
+    if (statsProvider.isRefreshInProgress()) {
+      return NextResponse.json({
+        message: 'Refresh is already in progress',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Run refresh in background (don't wait for completion to avoid timeout)
     statsProvider.refreshAllStats().catch(error => {
       console.error('Background refresh error:', error);
@@ -73,6 +80,13 @@ export async function POST(request: Request) {
       );
     }
     
+    if (statsProvider.isRefreshInProgress()) {
+      return NextResponse.json({
+        message: 'Refresh is already in progress',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Run refresh
     await statsProvider.refreshAllStats();
     

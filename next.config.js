@@ -2,6 +2,9 @@
 const nextConfig = {
   compress: false, // Disable Next.js compression to avoid conflicts with Hostinger/LiteSpeed
   reactStrictMode: true,
+  experimental: {
+    instrumentationHook: true,
+  },
   env: {
     DATABASE_URL: process.env.DATABASE_URL,
     ADMIN_SECRET: process.env.ADMIN_SECRET,

@@ -3,17 +3,17 @@
   "version": "2.0.0",
   "description": "Listune Top Chart - High-performance REST API and interactive analytics dashboard for Spotify daily top charts across 20+ countries.",
   "author": {
-    "name": "L RMN",
+    "name": "lrmn7",
     "url": "https://lrmn.wtf/"
   },
   "license": "MIT",
   "homepage": "https://lrmn.wtf/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lrmn7/listune-top-chart.git"
+    "url": "https://github.com/listune/listune-top-chart.git"
   },
   "bugs": {
-    "url": "https://github.com/lrmn7/listune-top-chart/issues"
+    "url": "https://github.com/listune/listune-top-chart/issues"
   },
   "keywords": [
     "spotify",
@@ -35,7 +35,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
-    "start:prod": "npm run db:generate && npm run db:push && npm run build && npm run start"
+    "start:prod": "npm run build && npm run start"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

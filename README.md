@@ -44,7 +44,7 @@ Listune Top Chart is a **JSON-only API service** built with Next.js that scrapes
 
 ```bash
 # Clone the repository
-git clone https://github.com/lrmn7/listune-top-chart.git
+git clone https://github.com/listune/listune-top-chart.git
 cd listune-top-chart
 
 # Install dependencies

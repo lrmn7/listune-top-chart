@@ -7,14 +7,27 @@ import { TrackStat } from '../types';
 
 export interface SpotifyStatsProvider {
   refreshAllStats(): Promise<void>;
+  isRefreshInProgress(): boolean;
   getTopTracks(limit: number, country?: string): Promise<TrackStat[]>;
 }
 
 class SpotifyStatsProviderImpl implements SpotifyStatsProvider {
+  private isRefreshing = false;
+
+  isRefreshInProgress(): boolean {
+    return this.isRefreshing;
+  }
+
   /**
    * Refreshes all track stats by scraping kworb, storing snapshots, computing deltas, and enriching with Spotify metadata
    */
   async refreshAllStats(): Promise<void> {
+    if (this.isRefreshing) {
+      console.log('⚠️ Stats refresh is already in progress. Skipping duplicate call.');
+      return;
+    }
+
+    this.isRefreshing = true;
     console.log('Starting stats refresh...');
 
     try {
@@ -55,6 +68,8 @@ class SpotifyStatsProviderImpl implements SpotifyStatsProvider {
     } catch (error) {
       console.error('Error refreshing stats:', error);
       throw error;
+    } finally {
+      this.isRefreshing = false;
     }
   }
 
