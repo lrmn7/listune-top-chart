@@ -8,8 +8,31 @@ import { trackSnapshotRepo, trackCurrentRepo, closeDbConnection } from './src/li
 import * as cheerio from 'cheerio';
 
 const FETCH_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
 };
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithRetry(url: string, retries = 3, delayMs = 3000, timeoutMs = 20000): Promise<Response> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { headers: FETCH_HEADERS, signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (response.ok) return response;
+      console.warn(`  ⚠️ Attempt ${attempt}/${retries}: HTTP ${response.status} for ${url}`);
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      const isTimeout = err.name === 'AbortError' || err.code === 'UND_ERR_CONNECT_TIMEOUT';
+      console.warn(`  ⚠️ Attempt ${attempt}/${retries} failed: ${isTimeout ? 'Connection Timeout' : err.message}`);
+      if (attempt === retries) throw err;
+      console.log(`  ⏳ Waiting ${delayMs / 1000}s before retrying...`);
+      await sleep(delayMs);
+    }
+  }
+  throw new Error(`Failed to fetch ${url} after ${retries} attempts`);
+}
 
 interface TrackRaw {
   trackName: string;
@@ -33,8 +56,7 @@ function parseNumber(text: string): number {
 
 async function scrapeKworbDailyTracks(countryCode: string): Promise<TrackRaw[]> {
   const url = `https://kworb.net/spotify/country/${countryCode}_daily.html`;
-  const response = await fetch(url, { headers: FETCH_HEADERS });
-  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+  const response = await fetchWithRetry(url, 3, 3000);
 
   const html = await response.text();
   const $ = cheerio.load(html);
@@ -212,6 +234,9 @@ async function refreshAllStats() {
       console.log(`✅ ${country} done`);
     } catch (error) {
       console.error(`❌ Error scraping ${country}:`, error);
+    } finally {
+      console.log('⏳ Waiting 3s before next country...');
+      await sleep(3000);
     }
   }
 }
