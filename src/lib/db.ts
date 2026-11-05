@@ -10,6 +10,7 @@ import { eq, and, lt, gte, desc, asc, inArray, sql } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
 import { Pool as PgPool } from 'pg';
 import { createClient as createLibsqlClient } from '@libsql/client';
+import crypto from 'crypto';
 
 import * as mysqlSchema from './db/schema/mysql';
 import * as pgSchema from './db/schema/pg';
